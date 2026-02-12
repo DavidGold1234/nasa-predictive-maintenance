@@ -9,3 +9,12 @@ services:
     volumes:
       - .:/app
     command: python src/main.py
+
+  training:
+    build: .
+    container_name: ML_pipeline
+    env_file:
+      - .env
+    command: python src/learning/train.py
+    volumes:
+      - .:/app

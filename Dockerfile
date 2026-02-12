@@ -20,5 +20,6 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copiar código
 COPY src/ ./src/
 
-# Comando por defecto
-CMD ["python", "src/main.py"]
+# CMD genérico (opcional)
+CMD ["python"]
+
