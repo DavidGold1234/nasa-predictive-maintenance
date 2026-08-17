@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Modelos y artifacts entrenados (binarios grandes, regenerables via los scripts run_*.sh)
+data/models/
+
+# Logs
+logs/*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Configuracion local de Claude Code (no forma parte del proyecto)
+.claude/
