@@ -22,7 +22,7 @@ RUN python3 -m pip install --no-cache-dir \
 
 RUN python3 -m pip install --no-cache-dir \
     torch==2.4.1 \
-    --index-url https://download.pytorch.org/whl/cpu
+    --index-url https://download.pytorch.org/whl/cu121
 
 RUN python3 -m pip install --no-cache-dir kafka-python
 

@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 480" role="img" aria-label="Diagrama de infraestructura con flujo numerado en 6 pasos sobre los 9 contenedores Docker, organizados en cuadricula por columnas (ingesta, procesamiento, almacenamiento, persistencia/visualizacion) con conectores rectos sin cruces: 1) ros-gazebo publica telemetria a Kafka, 2) Spark consume los mensajes desde Kafka, 3) spark-master distribuye tareas a spark-worker, 4) spark-worker lee y escribe Parquet en datanode (capas bronze/silver/gold), 5) spark-master escribe resultados en PostgreSQL via JDBC (ruta superior, sin cruzar namenode), 6) Grafana consulta PostgreSQL. Zookeeper (soporte continuo de Kafka) y Jupyter (exploracion ad-hoc) se muestran como auxiliares, conectados por fuera de la secuencia numerada.">
+  <style>
+    .bg { fill: #ffffff; }
+    .box { fill: #ffffff; stroke: #9a9c95; stroke-width: 1.4; }
+    .box-dashed { fill: #eaeae6; stroke: #9a9c95; stroke-width: 1.2; stroke-dasharray: 4 3; }
+    .lbl-title { font: 600 13px "Consolas","Courier New",monospace; fill: #1b1d22; }
+    .lbl-sub { font: 11px "Consolas","Courier New",monospace; fill: #61646d; }
+    .lbl-edge { font: 11px "Consolas","Courier New",monospace; fill: #61646d; }
+    .lbl-edge-num { font: 600 11px "Consolas","Courier New",monospace; fill: #2f6f6c; }
+    .lbl-zone { font: 600 11px "Consolas","Courier New",monospace; letter-spacing: 1px; fill: #61646d; }
+    .edge { stroke: #9a9c95; stroke-width: 1.4; fill: none; }
+    .frame { fill: none; stroke: #c7c8c2; stroke-width: 1.2; stroke-dasharray: 5 4; }
+    .step-circle { fill: #2f6f6c; }
+    .step-num { font: 700 11px "Consolas","Courier New",monospace; fill: #ffffff; }
+  </style>
+  <defs>
+    <marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a9c95"></path>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1100" height="480"></rect>
+
+  <rect x="14" y="14" width="1072" height="452" rx="10" class="frame"></rect>
+  <text x="30" y="34" class="lbl-zone">DOCKER COMPOSE . RED INTERNA COMPARTIDA</text>
+
+  <!-- puente del paso 5, por encima de toda la fila 1 para no cruzar namenode -->
+  <text x="670" y="44" text-anchor="middle" class="lbl-edge-num">5. JDBC: escribe resultados (eval_*)</text>
+  <line x1="470" y1="52" x2="870" y2="52" class="edge"></line>
+  <line x1="470" y1="52" x2="470" y2="92" class="edge"></line>
+  <line x1="870" y1="52" x2="870" y2="88" class="edge" marker-end="url(#arrow2)"></line>
+  <circle class="step-circle" cx="670" cy="52" r="10"></circle>
+  <text x="670" y="56" text-anchor="middle" class="step-num">5</text>
+
+  <text x="130" y="76" text-anchor="middle" class="lbl-zone">INGESTA</text>
+  <text x="400" y="76" text-anchor="middle" class="lbl-zone">PROCESAMIENTO</text>
+  <text x="670" y="76" text-anchor="middle" class="lbl-zone">ALMACENAMIENTO</text>
+  <text x="940" y="76" text-anchor="middle" class="lbl-zone">PERSISTENCIA</text>
+
+  <!-- ROW 1 -->
+  <rect x="30" y="92" width="200" height="58" rx="6" class="box"></rect>
+  <text x="130" y="115" text-anchor="middle" class="lbl-title">ros-gazebo</text>
+  <text x="130" y="132" text-anchor="middle" class="lbl-sub">nodo rospy publisher</text>
+
+  <rect x="300" y="92" width="200" height="58" rx="6" class="box"></rect>
+  <text x="400" y="115" text-anchor="middle" class="lbl-title">spark-master</text>
+  <text x="400" y="132" text-anchor="middle" class="lbl-sub">driver . orquesta jobs</text>
+
+  <rect x="570" y="92" width="200" height="58" rx="6" class="box"></rect>
+  <text x="670" y="115" text-anchor="middle" class="lbl-title">namenode</text>
+  <text x="670" y="132" text-anchor="middle" class="lbl-sub">metadata HDFS</text>
+
+  <rect x="840" y="92" width="200" height="58" rx="6" class="box"></rect>
+  <text x="940" y="115" text-anchor="middle" class="lbl-title">postgres</text>
+  <text x="940" y="132" text-anchor="middle" class="lbl-sub">predicciones y metricas</text>
+
+  <!-- ROW 2 -->
+  <rect x="30" y="240" width="200" height="58" rx="6" class="box"></rect>
+  <text x="130" y="263" text-anchor="middle" class="lbl-title">kafka</text>
+  <text x="130" y="280" text-anchor="middle" class="lbl-sub">topico ros_motor_telemetry</text>
+
+  <rect x="300" y="240" width="200" height="58" rx="6" class="box"></rect>
+  <text x="400" y="263" text-anchor="middle" class="lbl-title">spark-worker</text>
+  <text x="400" y="280" text-anchor="middle" class="lbl-sub">6 cores . 8 GB</text>
+
+  <rect x="570" y="240" width="200" height="58" rx="6" class="box"></rect>
+  <text x="670" y="263" text-anchor="middle" class="lbl-title">datanode</text>
+  <text x="670" y="280" text-anchor="middle" class="lbl-sub">bloques bronze/silver/gold</text>
+
+  <rect x="840" y="240" width="200" height="58" rx="6" class="box"></rect>
+  <text x="940" y="263" text-anchor="middle" class="lbl-title">grafana</text>
+  <text x="940" y="280" text-anchor="middle" class="lbl-sub">tableros de control</text>
+
+  <!-- ROW 3 (auxiliares) -->
+  <rect x="30" y="388" width="200" height="46" rx="6" class="box"></rect>
+  <text x="130" y="410" text-anchor="middle" class="lbl-title">zookeeper</text>
+  <text x="130" y="425" text-anchor="middle" class="lbl-sub">metadata de brokers</text>
+
+  <rect x="300" y="388" width="200" height="46" rx="6" class="box-dashed"></rect>
+  <text x="400" y="410" text-anchor="middle" class="lbl-title">jupyter</text>
+  <text x="400" y="425" text-anchor="middle" class="lbl-sub">EDA exploratorio</text>
+
+  <!-- paso 1: ros-gazebo -> kafka (vertical) -->
+  <circle class="step-circle" cx="252" cy="207" r="10"></circle>
+  <text x="252" y="211" text-anchor="middle" class="step-num">1</text>
+  <line x1="130" y1="150" x2="130" y2="236" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="142" y="201" class="lbl-edge">publica telemetria</text>
+  <text x="142" y="215" class="lbl-edge">JSON a 10 Hz</text>
+
+  <!-- paso 2: kafka -> spark-worker (horizontal, fila 2) -->
+  <circle class="step-circle" cx="265" cy="269" r="10"></circle>
+  <text x="265" y="273" text-anchor="middle" class="step-num">2</text>
+  <line x1="230" y1="269" x2="296" y2="269" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="204" y="255" class="lbl-edge">consume mensajes</text>
+  <text x="204" y="311" class="lbl-edge">(batch o streaming)</text>
+
+  <!-- paso 3: spark-master -> spark-worker (vertical) -->
+  <circle class="step-circle" cx="400" cy="207" r="10"></circle>
+  <text x="400" y="211" text-anchor="middle" class="step-num">3</text>
+  <line x1="400" y1="150" x2="400" y2="236" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="412" y="208" class="lbl-edge">distribuye tareas</text>
+
+  <!-- paso 4: spark-worker -> datanode (horizontal, fila 2) -->
+  <circle class="step-circle" cx="535" cy="269" r="10"></circle>
+  <text x="535" y="273" text-anchor="middle" class="step-num">4</text>
+  <line x1="500" y1="269" x2="566" y2="269" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="474" y="255" class="lbl-edge">lee/escribe parquet</text>
+  <text x="474" y="311" class="lbl-edge">bronze / silver / gold</text>
+
+  <!-- namenode <-> datanode: replica bloques (vertical, sin numerar) -->
+  <line x1="670" y1="150" x2="670" y2="236" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="682" y="197" class="lbl-edge">replica</text>
+  <text x="682" y="211" class="lbl-edge">bloques</text>
+
+  <!-- paso 6: postgres -> grafana (vertical) -->
+  <circle class="step-circle" cx="940" cy="207" r="10"></circle>
+  <text x="940" y="211" text-anchor="middle" class="step-num">6</text>
+  <line x1="940" y1="150" x2="940" y2="236" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="952" y="201" class="lbl-edge">consulta SQL</text>
+  <text x="952" y="215" class="lbl-edge">(refresco periodico)</text>
+
+  <!-- zookeeper <-> kafka: soporte, sin numerar -->
+  <line x1="130" y1="388" x2="130" y2="298" class="edge" marker-end="url(#arrow2)"></line>
+  <text x="142" y="335" class="lbl-edge">coordina brokers</text>
+  <text x="142" y="349" class="lbl-edge">(soporte continuo)</text>
+
+  <!-- jupyter <-> spark-worker: auxiliar, sin numerar -->
+  <line x1="400" y1="388" x2="400" y2="298" class="edge" stroke-dasharray="4 3" marker-end="url(#arrow2)"></line>
+  <text x="412" y="335" class="lbl-edge">exploracion ad-hoc</text>
+  <text x="412" y="349" class="lbl-edge">(auxiliar)</text>
+</svg>

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 740" role="img" aria-label="Diagrama de flujo numerado en 8 pasos: 1) ingesta batch/streaming hacia HDFS bronze, 2) limpieza con Spark hacia silver, 3) ingenieria de caracteristicas o adaptacion de dominio hacia gold, 4) entrenamiento o fine-tuning de los 4 modelos, 5) transferencia de los pesos del encoder de NASA hacia ROS, 6) evaluacion por ensamble con fusion OR, 7) escritura de resultados en PostgreSQL, 8) visualizacion en Grafana.">
+  <style>
+    .bg { fill: #ffffff; }
+    .box { fill: #ffffff; stroke: #9a9c95; stroke-width: 1.4; }
+    .stripe-bronze { fill: #a3623c; }
+    .stripe-silver { fill: #5c6472; }
+    .stripe-gold { fill: #93762a; }
+    .stripe-model { fill: #2f6f6c; }
+    .lbl-title { font: 600 13px "Consolas","Courier New",monospace; fill: #1b1d22; }
+    .lbl-sub { font: 11px "Consolas","Courier New",monospace; fill: #61646d; }
+    .lbl-edge { font: 11px "Consolas","Courier New",monospace; fill: #61646d; }
+    .lbl-edge-strong { font: 600 11px "Consolas","Courier New",monospace; fill: #2f6f6c; }
+    .lbl-zone { font: 600 11px "Consolas","Courier New",monospace; letter-spacing: 1px; fill: #61646d; }
+    .edge { stroke: #9a9c95; stroke-width: 1.4; fill: none; }
+    .edge-strong { stroke: #2f6f6c; stroke-width: 1.8; fill: none; }
+    .step-circle { fill: #2f6f6c; }
+    .step-num { font: 700 11px "Consolas","Courier New",monospace; fill: #ffffff; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9a9c95"></path>
+    </marker>
+    <marker id="arrowStrong" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f6f6c"></path>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="860" height="740"></rect>
+
+  <text x="210" y="20" text-anchor="middle" class="lbl-zone">DOMINIO NASA C-MAPSS</text>
+  <text x="630" y="20" text-anchor="middle" class="lbl-zone">DOMINIO SIMULACION ROS</text>
+
+  <rect x="40" y="32" width="340" height="56" rx="6" class="box"></rect>
+  <text x="210" y="55" text-anchor="middle" class="lbl-title">Dataset NASA C-MAPSS</text>
+  <text x="210" y="72" text-anchor="middle" class="lbl-sub">train/test/RUL . .txt . 160 359 filas</text>
+
+  <rect x="460" y="32" width="340" height="56" rx="6" class="box"></rect>
+  <text x="630" y="55" text-anchor="middle" class="lbl-title">Simulador ROS (rospy)</text>
+  <text x="630" y="72" text-anchor="middle" class="lbl-sub">telemetria publicada a Kafka . 10 Hz</text>
+
+  <circle class="step-circle" cx="20" cy="104" r="9"></circle>
+  <text x="20" y="108" text-anchor="middle" class="step-num">1</text>
+  <line x1="210" y1="88" x2="210" y2="112" class="edge" marker-end="url(#arrow)"></line>
+  <line x1="630" y1="88" x2="630" y2="112" class="edge" marker-end="url(#arrow)"></line>
+  <text x="222" y="104" class="lbl-edge">ingesta: copia .txt cruda</text>
+  <text x="642" y="104" class="lbl-edge">ingesta: Kafka 10Hz por lotes</text>
+
+  <rect x="40" y="114" width="8" height="58" class="stripe-bronze"></rect>
+  <rect x="48" y="114" width="332" height="58" rx="6" class="box"></rect>
+  <text x="214" y="138" text-anchor="middle" class="lbl-title">HDFS bronze/nasa_raw</text>
+  <text x="214" y="155" text-anchor="middle" class="lbl-sub">copia integra, sin transformar</text>
+
+  <rect x="460" y="114" width="8" height="58" class="stripe-bronze"></rect>
+  <rect x="468" y="114" width="332" height="58" rx="6" class="box"></rect>
+  <text x="634" y="138" text-anchor="middle" class="lbl-title">HDFS bronze/ros_motor_telemetry</text>
+  <text x="634" y="155" text-anchor="middle" class="lbl-sub">12 187 filas reales . 3 motores</text>
+
+  <circle class="step-circle" cx="20" cy="188" r="9"></circle>
+  <text x="20" y="192" text-anchor="middle" class="step-num">2</text>
+  <line x1="210" y1="172" x2="210" y2="196" class="edge" marker-end="url(#arrow)"></line>
+  <line x1="630" y1="172" x2="630" y2="196" class="edge" marker-end="url(#arrow)"></line>
+  <text x="222" y="188" class="lbl-edge">Spark: tipado, dedup, filtrado</text>
+  <text x="642" y="188" class="lbl-edge">Spark: tipado, dedup, filtrado</text>
+
+  <rect x="40" y="198" width="8" height="58" class="stripe-silver"></rect>
+  <rect x="48" y="198" width="332" height="58" rx="6" class="box"></rect>
+  <text x="214" y="222" text-anchor="middle" class="lbl-title">HDFS silver/train_all</text>
+  <text x="214" y="239" text-anchor="middle" class="lbl-sub">estructurado, tipado, sin duplicados</text>
+
+  <rect x="460" y="198" width="8" height="58" class="stripe-silver"></rect>
+  <rect x="468" y="198" width="332" height="58" rx="6" class="box"></rect>
+  <text x="634" y="222" text-anchor="middle" class="lbl-title">HDFS silver/ros_clean</text>
+  <text x="634" y="239" text-anchor="middle" class="lbl-sub">0% perdida en la limpieza</text>
+
+  <circle class="step-circle" cx="20" cy="272" r="9"></circle>
+  <text x="20" y="276" text-anchor="middle" class="step-num">3</text>
+  <line x1="210" y1="256" x2="210" y2="280" class="edge" marker-end="url(#arrow)"></line>
+  <line x1="630" y1="256" x2="630" y2="280" class="edge" marker-end="url(#arrow)"></line>
+  <text x="222" y="272" class="lbl-edge">selecciona 11 sensores + normaliza</text>
+  <text x="642" y="272" class="lbl-edge">detecta regimen (KMeans) + normaliza</text>
+
+  <rect x="40" y="282" width="8" height="72" class="stripe-gold"></rect>
+  <rect x="48" y="282" width="332" height="72" rx="6" class="box"></rect>
+  <text x="214" y="304" text-anchor="middle" class="lbl-title">HDFS gold/nasa_train_gold</text>
+  <text x="214" y="321" text-anchor="middle" class="lbl-sub">11 sensores + cycles_since_regime</text>
+  <text x="214" y="336" text-anchor="middle" class="lbl-sub">linea base propia (regresion por regimen)</text>
+
+  <rect x="460" y="282" width="8" height="72" class="stripe-gold"></rect>
+  <rect x="468" y="282" width="332" height="72" rx="6" class="box"></rect>
+  <text x="634" y="304" text-anchor="middle" class="lbl-title">HDFS gold/ros_gold</text>
+  <text x="634" y="321" text-anchor="middle" class="lbl-sub">mismas 12 features, otra escala fisica</text>
+  <text x="634" y="336" text-anchor="middle" class="lbl-sub">linea base ROS-especifica (nunca la de NASA)</text>
+
+  <circle class="step-circle" cx="20" cy="368" r="9"></circle>
+  <text x="20" y="372" text-anchor="middle" class="step-num">4</text>
+  <line x1="210" y1="354" x2="210" y2="382" class="edge" marker-end="url(#arrow)"></line>
+  <text x="222" y="372" class="lbl-edge">entrena 4 modelos desde cero</text>
+  <line x1="630" y1="354" x2="630" y2="382" class="edge" marker-end="url(#arrow)"></line>
+  <text x="642" y="372" class="lbl-edge">reentrena con pesos NASA</text>
+
+  <rect x="40" y="384" width="8" height="76" class="stripe-model"></rect>
+  <rect x="48" y="384" width="332" height="76" rx="6" class="box"></rect>
+  <text x="214" y="408" text-anchor="middle" class="lbl-title">Entrenamiento (ventanas sanas)</text>
+  <text x="214" y="425" text-anchor="middle" class="lbl-sub">Isolation Forest . LSTM-AE</text>
+  <text x="214" y="440" text-anchor="middle" class="lbl-sub">TCN-AE . Transformer-AE</text>
+
+  <rect x="460" y="384" width="8" height="76" class="stripe-model"></rect>
+  <rect x="468" y="384" width="332" height="76" rx="6" class="box"></rect>
+  <text x="634" y="408" text-anchor="middle" class="lbl-title">Fine-tuning en dominio ROS</text>
+  <text x="634" y="425" text-anchor="middle" class="lbl-sub">mismo ensamble de 4 modelos</text>
+  <text x="634" y="440" text-anchor="middle" class="lbl-sub">LR 10x menor que el original</text>
+
+  <circle class="step-circle" cx="20" cy="420" r="9"></circle>
+  <text x="20" y="424" text-anchor="middle" class="step-num">5</text>
+  <line x1="380" y1="420" x2="460" y2="420" class="edge-strong" marker-end="url(#arrowStrong)"></line>
+  <text x="420" y="414" text-anchor="middle" class="lbl-edge-strong">transfiere</text>
+  <text x="420" y="472" text-anchor="middle" class="lbl-edge">encoder + proyeccion latente</text>
+  <text x="420" y="486" text-anchor="middle" class="lbl-edge">congelados . solo decoder se reentrena</text>
+
+  <line x1="214" y1="460" x2="214" y2="480" class="edge"></line>
+  <line x1="214" y1="480" x2="420" y2="480" class="edge"></line>
+  <line x1="634" y1="460" x2="634" y2="504" class="edge"></line>
+  <line x1="634" y1="504" x2="420" y2="504" class="edge"></line>
+  <line x1="420" y1="480" x2="420" y2="522" class="edge" marker-end="url(#arrow)"></line>
+  <line x1="420" y1="504" x2="420" y2="522" class="edge"></line>
+
+  <circle class="step-circle" cx="20" cy="554" r="9"></circle>
+  <text x="20" y="558" text-anchor="middle" class="step-num">6</text>
+  <rect x="240" y="524" width="360" height="60" rx="6" class="box"></rect>
+  <text x="420" y="548" text-anchor="middle" class="lbl-title">Evaluacion . ensamble por fusion OR</text>
+  <text x="420" y="565" text-anchor="middle" class="lbl-sub">3 autoencoders = gatillo primario . Isolation Forest = confirmacion</text>
+
+  <line x1="420" y1="584" x2="420" y2="608" class="edge" marker-end="url(#arrow)"></line>
+  <text x="432" y="600" class="lbl-edge">escribe via JDBC</text>
+
+  <circle class="step-circle" cx="20" cy="636" r="9"></circle>
+  <text x="20" y="640" text-anchor="middle" class="step-num">7</text>
+  <rect x="240" y="610" width="360" height="52" rx="6" class="box"></rect>
+  <text x="420" y="632" text-anchor="middle" class="lbl-title">PostgreSQL</text>
+  <text x="420" y="649" text-anchor="middle" class="lbl-sub">eval_interna_* . eval_externa_* . eval_ros_*</text>
+
+  <line x1="420" y1="662" x2="420" y2="686" class="edge" marker-end="url(#arrow)"></line>
+  <text x="432" y="678" class="lbl-edge">consulta SQL directa</text>
+
+  <circle class="step-circle" cx="20" cy="710" r="9"></circle>
+  <text x="20" y="714" text-anchor="middle" class="step-num">8</text>
+  <rect x="240" y="688" width="360" height="46" rx="6" class="box"></rect>
+  <text x="420" y="716" text-anchor="middle" class="lbl-title">Grafana . tableros de control</text>
+</svg>

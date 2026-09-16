@@ -83,7 +83,7 @@ services:
       - ./apps:/apps
       - ./src:/src
       - ./outputs:/outputs
-    mem_limit: 1g
+    mem_limit: 3g
     cpus: 1.50
 
   spark-worker:
