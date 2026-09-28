@@ -76,7 +76,10 @@ for name in required:
 n = bronze.count()
 print(f"Filas leídas de Kafka (batch, earliest->latest): {n}")
 
-bronze.write.mode("overwrite").parquet(OUTPUT)
-print(f"✅ Escrito en: {OUTPUT}")
+if n == 0:
+    print("⚠️ 0 filas leídas de Kafka (tópico vacío o purgado por retención) — no se escribe nada, bronze existente se conserva intacto.")
+else:
+    bronze.write.mode("append").parquet(OUTPUT)
+    print(f"✅ Escrito en: {OUTPUT} (append, {n} filas nuevas)")
 
 spark.stop()

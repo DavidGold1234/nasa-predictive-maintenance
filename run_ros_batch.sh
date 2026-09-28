@@ -12,6 +12,7 @@ run_spark_py() {
     mkdir -p /tmp/.ivy2/cache /tmp/.ivy2/jars
     export HOME=/tmp
     export IVY_HOME=/tmp/.ivy2
+    export HDFS_ROS_BRONZE=hdfs://namenode:9000/user/root/nasa/bronze/ros_motor_telemetry_batch
     /opt/spark/bin/spark-submit \
       --master $SPARK_MASTER_URL \
       --conf spark.jars.ivy=/tmp/.ivy2 \

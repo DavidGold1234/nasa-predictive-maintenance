@@ -233,7 +233,43 @@ def write_to_postgres(df: pd.DataFrame, table_name: str) -> None:
     )
     jdbc_url = f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     props = {"user": POSTGRES_USER, "password": POSTGRES_PASSWORD, "driver": "org.postgresql.Driver"}
-    spark.createDataFrame(df).write.mode(POSTGRES_IF_EXISTS).jdbc(jdbc_url, full_table, properties=props)
+
+    # Columnas nulas/enteras con huecos (p.ej. first_warning_cycle/first_critical_cycle
+    # cuando ningun motor cruzo ese umbral todavia) rompen la inferencia de Spark o, si se
+    # dejan como float64, llegan a Postgres como NaN sobre una columna bigint (invalido).
+    df = df.copy()
+    all_null_cols: list[str] = []
+    nullable_int_cols = {"first_warning_cycle", "first_critical_cycle"}
+    for c in df.columns:
+        if c in nullable_int_cols:
+            has_value = df[c].apply(lambda x: not pd.isna(x)).any()
+            if has_value:
+                df[c] = df[c].apply(lambda x: None if pd.isna(x) else int(x))
+            else:
+                all_null_cols.append(c)
+                df[c] = 0  # placeholder para que Spark pueda inferir el tipo; se anula abajo
+        elif df[c].dtype == object and df[c].isna().all():
+            all_null_cols.append(c)
+            df[c] = 0
+        elif df[c].dtype == "float64" and df[c].isna().any():
+            non_null = df[c].dropna()
+            if not non_null.empty and (non_null == non_null.astype("int64")).all():
+                df[c] = df[c].apply(lambda x: None if pd.isna(x) else int(x))
+
+    print(f"🔎 DEBUG dtypes {table_name}: {df.dtypes.to_dict()}")
+    if "first_warning_cycle" in df.columns:
+        print(f"🔎 DEBUG first_warning_cycle values: {df['first_warning_cycle'].tolist()}")
+        print(f"🔎 DEBUG first_critical_cycle values: {df['first_critical_cycle'].tolist()}")
+
+    sdf = spark.createDataFrame(df)
+    if all_null_cols:
+        from pyspark.sql.functions import lit
+        from pyspark.sql.types import LongType
+
+        for c in all_null_cols:
+            sdf = sdf.withColumn(c, lit(None).cast(LongType()))
+
+    sdf.write.mode(POSTGRES_IF_EXISTS).jdbc(jdbc_url, full_table, properties=props)
     print(f"✅ PostgreSQL vía Spark JDBC -> {full_table} | rows={len(df)}")
     spark.stop()
 

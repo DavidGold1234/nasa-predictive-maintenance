@@ -9,7 +9,7 @@ from pyspark.sql.window import Window
 
 BRONZE = os.environ.get(
     "HDFS_ROS_BRONZE",
-    "hdfs://namenode:9000/user/root/nasa/bronze/ros_motor_telemetry",
+    "hdfs://namenode:9000/user/root/nasa/bronze/ros_motor_telemetry_batch",
 )
 SILVER = os.environ.get(
     "HDFS_ROS_SILVER",
@@ -107,9 +107,12 @@ def main() -> None:
     )
 
     silver_count = silver_df.count()
-    silver_df.write.mode("overwrite").parquet(SILVER)
+    if silver_count == 0:
+        print("⚠️ 0 filas tras la limpieza — no se escribe nada, silver existente se conserva intacto.")
+    else:
+        silver_df.write.mode("overwrite").parquet(SILVER)
+        print(f"✅ Silver ROS generado en: {SILVER}")
 
-    print(f"✅ Silver ROS generado en: {SILVER}")
     print(f"Bronze original    : {bronze_count}")
     print(f"Tras limpieza      : {clean_count}")
     print(f"Registros silver   : {silver_count}")

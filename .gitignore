@@ -18,3 +18,9 @@ Thumbs.db
 
 # Configuracion local de Claude Code (no forma parte del proyecto)
 .claude/
+
+# Borradores de redaccion de la tesis (no es codigo fuente del proyecto)
+docs/ImplementacionContexto.md
+docs/InstruccioinesEscrito.md
+docs/borradores/
+docs/PreguntasTutores.md
