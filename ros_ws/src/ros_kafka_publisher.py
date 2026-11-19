@@ -33,6 +33,13 @@ ENGINE_ID = f"{DATASET_ID}_{ENGINE_NUM}"
 RUN_SEED = int(os.environ.get("RUN_SEED", "0"))
 DEGRADATION_PROFILE = os.environ.get("DEGRADATION_PROFILE", "medium").strip().lower()
 
+# Ciclo global desde el que arranca esta sesion (no reinicia en 1): permite relanzar
+# el MISMO engine_id despues de un "mantenimiento" sin chocar con el cycle ya
+# existente en gold (dedup por dataset_id+engine_id+cycle). La curva de degradacion
+# SI se reinicia (ver local_cycle en main()), simulando que el motor quedo sano tras
+# la reparacion, mientras el cycle publicado sigue avanzando como tiempo operativo real.
+START_CYCLE = int(os.environ.get("START_CYCLE", "1"))
+
 
 def utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -168,10 +175,15 @@ def compute_degradation(cycle: int, engine_state: dict):
     return degradation, local_burst
 
 
-def build_row(cycle: int, engine_state: dict):
+def build_row(global_cycle: int, local_cycle: int, engine_state: dict):
+    """global_cycle: valor publicado en el mensaje (nunca se repite para el mismo
+    engine_id, sigue avanzando aunque se relance el publicador tras mantenimiento).
+    local_cycle: alimenta la degradacion/regimen, siempre arranca en 1 en cada
+    sesion nueva - asi el motor "reparado" vuelve a HEALTHY aunque el cycle global
+    siga subiendo."""
     rng = engine_state["rng"]
-    load, slope, speed_cmd = compute_regime(cycle, engine_state)
-    degradation, local_burst = compute_degradation(cycle, engine_state)
+    load, slope, speed_cmd = compute_regime(local_cycle, engine_state)
+    degradation, local_burst = compute_degradation(local_cycle, engine_state)
 
     # señales base ROS con tendencia + picos
     current = (
@@ -219,7 +231,7 @@ def build_row(cycle: int, engine_state: dict):
         "dataset_id": DATASET_ID,
         "engine_id": ENGINE_ID,
         "engine_num": ENGINE_NUM,
-        "cycle": cycle,
+        "cycle": global_cycle,
         "op_setting_1": load,
         "op_setting_2": slope,
         "op_setting_3": speed_cmd,
@@ -290,7 +302,7 @@ def main():
         )
 
     rate = rospy.Rate(PUBLISH_HZ)
-    cycle = 1
+    cycle = START_CYCLE
     raw_count_in_cycle = 0
     cycle_progress_acc = 0
     engine_state = init_engine_state(ENGINE_NUM)
@@ -300,14 +312,16 @@ def main():
         f"ROS publisher listo | engine={ENGINE_ID} | "
         f"publish_hz={PUBLISH_HZ} | inference_hz={INFERENCE_HZ} | "
         f"raw/effective≈{RAW_PER_EFFECTIVE_CYCLE:.3f} | "
-        f"profile={DEGRADATION_PROFILE} | run_seed={RUN_SEED}"
+        f"profile={DEGRADATION_PROFILE} | run_seed={RUN_SEED} | "
+        f"start_cycle={START_CYCLE}"
     )
 
     try:
         while not rospy.is_shutdown():
             # generar una sola vez por ciclo efectivo
             if raw_count_in_cycle == 0 or current_cycle_row is None:
-                current_cycle_row = build_row(cycle, engine_state)
+                local_cycle = cycle - START_CYCLE + 1
+                current_cycle_row = build_row(cycle, local_cycle, engine_state)
 
             row = apply_raw_jitter(
                 current_cycle_row,

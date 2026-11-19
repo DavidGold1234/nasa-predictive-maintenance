@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import datetime, timezone
 
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, current_timestamp, from_json
+from pyspark.sql.functions import col, from_json, lit, regexp_extract, regexp_replace
 from pyspark.sql.types import (
     DoubleType,
     IntegerType,
@@ -26,9 +27,18 @@ POSTGRES_DB = os.environ.get("POSTGRES_DB", "tesis")
 POSTGRES_USER = os.environ.get("POSTGRES_USER", "postgres")
 POSTGRES_PASSWORD = os.environ.get("POSTGRES_PASSWORD", "postgres")
 POSTGRES_SCHEMA = os.environ.get("POSTGRES_SCHEMA", "public")
-POSTGRES_TABLE = os.environ.get("POSTGRES_TABLE", "ros_alerts_live")
+# Misma tabla que usa el pipeline batch (evaluate_ros_from_gold.py), para que las
+# alertas en vivo aparezcan en el mismo dashboard de Grafana sin panel aparte.
+POSTGRES_TABLE = os.environ.get("POSTGRES_TABLE", "eval_ros_predictions")
 
 RETRY_WAIT_SECONDS = int(os.environ.get("ROS_ALERTS_RETRY_WAIT_SECONDS", "5"))
+
+# Un run_id por sesion de streaming, para poder distinguirla en el desplegable
+# "Corrida (run_id)" de Grafana igual que las corridas batch.
+RUN_ID = os.environ.get(
+    "ROS_LIVE_RUN_ID",
+    "ros_live_" + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S"),
+)
 
 # Schema compacto — debe coincidir exactamente con el payload de ros_kafka_inference.py
 schema = StructType([
@@ -85,7 +95,7 @@ def main() -> None:
     )
     spark.sparkContext.setLogLevel("WARN")
 
-    print(f"✅ ROS alerts -> PostgreSQL preparado | topic={TOPIC} | checkpoint={CHECKPOINT}")
+    print(f"✅ ROS alerts -> PostgreSQL preparado | topic={TOPIC} | tabla={POSTGRES_TABLE} | run_id={RUN_ID}")
 
     waiting_printed = False
 
@@ -102,11 +112,17 @@ def main() -> None:
                 .load()
             )
 
+            # engine_id sigue el patron {DATASET_ID}_{ENGINE_NUM} (ver ros_kafka_publisher.py);
+            # se separan aqui para que la fila calce con el esquema de eval_ros_predictions,
+            # la misma tabla que ya lee el dashboard de Grafana para el pipeline batch.
             parsed = (
                 raw.selectExpr("CAST(value AS STRING) AS json_str")
                 .select(from_json(col("json_str"), schema).alias("data"))
                 .select("data.*")
-                .withColumn("ingested_at", current_timestamp())
+                .withColumn("run_id", lit(RUN_ID))
+                .withColumn("dataset_id", regexp_replace(col("engine_id"), "_[0-9]+$", ""))
+                .withColumn("engine_num", regexp_extract(col("engine_id"), "_([0-9]+)$", 1).cast("int"))
+                .drop("timestamp")
             )
 
             query = (

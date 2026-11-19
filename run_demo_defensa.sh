@@ -21,25 +21,60 @@ POSTGRES_PACKAGE="${POSTGRES_PACKAGE:-org.postgresql:postgresql:42.7.4}"
 KAFKA_PACKAGE="${KAFKA_PACKAGE:-org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0}"
 
 DATASET_ID="DEMO_$(date +%Y%m%d_%H%M%S)"
+POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-postgres}"
+
+# Numeracion de motores continua (no reiniciar en 1/2/3 cada demo): se consulta el
+# engine_num mas alto ya usado en ROS001 + cualquier demo anterior, para que los
+# motores nuevos se vean como continuacion de la misma flota (ej. _7, _8, _9) en vez
+# de chocar visualmente con ROS001_1..6 (que llevan miles de ciclos y ya estan CRITICAL).
+# dataset_id sigue siendo DEMO_<timestamp> (no ROS001) para no alterar el conteo
+# historico oficial de ROS001 (1 030 277 mensajes) ya reportado en la tesis.
+NEXT_ENGINE=$(docker exec "$POSTGRES_CONTAINER" psql -U postgres -d tesis -t -A -c \
+  "SELECT COALESCE(MAX(engine_num), 6) FROM eval_ros_predictions WHERE dataset_id LIKE 'ROS001%' OR dataset_id LIKE 'DEMO_%'" \
+  2>/dev/null | tr -d '[:space:]')
+[ -z "$NEXT_ENGINE" ] && NEXT_ENGINE=6
+ENGINE_1=$((NEXT_ENGINE + 1))
+ENGINE_2=$((NEXT_ENGINE + 2))
+ENGINE_3=$((NEXT_ENGINE + 3))
 
 echo "======================================================================"
 echo " DEMO DEFENSA — dataset_id = $DATASET_ID"
+echo " Motores nuevos: _${ENGINE_1} (mild), _${ENGINE_2} (medium), _${ENGINE_3} (aggressive)"
 echo " Duracion de la corrida: ${DURATION_SECONDS}s"
 echo "======================================================================"
 echo ""
 
-# 1) roscore idempotente (mismo patron que run_ros_publishers.sh)
-if ! docker exec "$ROS_CONTAINER" bash -c "pgrep -f 'bin/roscore' >/dev/null 2>&1"; then
-    echo "roscore no esta corriendo — arrancandolo..."
+# 1) roscore idempotente — se verifica con una prueba FUNCIONAL (rosnode list),
+#    no solo con pgrep, porque pgrep puede dar falsos positivos con procesos
+#    zombie o en pleno arranque.
+roscore_vivo() {
+    docker exec "$ROS_CONTAINER" bash -lc "
+        source /opt/ros/noetic/setup.bash
+        export ROS_MASTER_URI=http://localhost:11311
+        timeout 5 rosnode list >/dev/null 2>&1
+    "
+}
+
+if ! roscore_vivo; then
+    echo "roscore no responde — arrancandolo..."
+    docker exec "$ROS_CONTAINER" bash -c "pkill -9 -f 'bin/roscore'" >/dev/null 2>&1 || true
+    sleep 1
     MSYS_NO_PATHCONV=1 docker exec -d "$ROS_CONTAINER" bash -lc "
         source /opt/ros/noetic/setup.bash
         export ROS_MASTER_URI=http://localhost:11311
         export ROS_HOSTNAME=localhost
         roscore
     "
-    sleep 3
+    for i in 1 2 3 4 5 6; do
+        sleep 3
+        if roscore_vivo; then break; fi
+    done
+    if ! roscore_vivo; then
+        echo "ERROR: roscore no respondio tras varios intentos. Abortando."
+        exit 1
+    fi
 fi
-echo "roscore OK."
+echo "roscore OK (verificado con rosnode list)."
 
 # 2) baseline de offset Kafka
 BASELINE=$(docker exec kafka bash -c "kafka-run-class kafka.tools.GetOffsetShell --broker-list localhost:9092 --topic ros_motor_telemetry --time -1" 2>/dev/null | cut -d: -f3)
@@ -67,9 +102,9 @@ launch_engine() {
 }
 
 echo "Lanzando 3 motores nuevos bajo dataset_id=$DATASET_ID ..."
-launch_engine 1 1 mild
-launch_engine 2 2 medium
-launch_engine 3 3 aggressive
+launch_engine "$ENGINE_1" 1 mild
+launch_engine "$ENGINE_2" 2 medium
+launch_engine "$ENGINE_3" 3 aggressive
 sleep 3
 echo ""
 echo "Motores vivos:"
@@ -142,5 +177,5 @@ echo "======================================================================"
 echo " LISTO. Abre Grafana (localhost:3000), dashboard ROS, y selecciona"
 echo " en el desplegable 'Corrida (run_id)' la mas reciente (arriba de todo,"
 echo " ordenada por fecha descendente) para ver los resultados de HOY."
-echo " Motores de esta demo: ${DATASET_ID}_1 (mild), ${DATASET_ID}_2 (medium), ${DATASET_ID}_3 (aggressive)"
+echo " Motores de esta demo: ${DATASET_ID}_${ENGINE_1} (mild), ${DATASET_ID}_${ENGINE_2} (medium), ${DATASET_ID}_${ENGINE_3} (aggressive)"
 echo "======================================================================"

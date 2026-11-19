@@ -69,9 +69,23 @@ required = [
     "sensor_17", "sensor_21",
 ]
 
+# dataset_id de pruebas/demos ya descartadas: Kafka puede seguir conservando estos
+# mensajes segun su politica de retencion, y como este job siempre relee desde el
+# offset mas antiguo disponible ("earliest"), sin este filtro reaparecerian en bronze
+# cada vez que se corre el pipeline aunque ya se hayan purgado de HDFS/Postgres.
+RETIRED_DATASET_IDS = [
+    d for d in os.environ.get(
+        "RETIRED_DATASET_IDS",
+        "DEMO_20260916_181025,DEMO_20260916_181518,DEMO_20260928_204708,DEMO_20260928_221515,TESTLIVE",
+    ).split(",")
+    if d.strip()
+]
+
 bronze = parsed
 for name in required:
     bronze = bronze.filter(col(name).isNotNull())
+if RETIRED_DATASET_IDS:
+    bronze = bronze.filter(~col("dataset_id").isin(RETIRED_DATASET_IDS))
 
 n = bronze.count()
 print(f"Filas leídas de Kafka (batch, earliest->latest): {n}")

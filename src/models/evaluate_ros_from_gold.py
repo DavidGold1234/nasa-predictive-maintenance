@@ -199,19 +199,51 @@ class TransformerAutoencoder(nn.Module):
         return self.out_proj(dec_out)
 
 
+def _clean_value(v: Any) -> Any:
+    """None/NaN -> None; entero-valuado (float o int) -> int; el resto sin tocar.
+
+    pandas re-coacciona silenciosamente una columna con None+int mezclados de
+    vuelta a float64 (None->NaN) en cuanto se le asigna el resultado de un
+    .apply(); por eso este saneo se hace fila por fila sobre records (dicts),
+    nunca sobre una Series/columna de pandas.
+    """
+    if v is None:
+        return None
+    if isinstance(v, float) and math.isnan(v):
+        return None
+    if isinstance(v, (int, np.integer)):
+        return int(v)
+    if isinstance(v, (float, np.floating)) and float(v).is_integer():
+        return int(v)
+    return v
+
+
 def write_to_postgres(df: pd.DataFrame, table_name: str) -> None:
     if df.empty:
         print(f"⚠️ {table_name}: dataframe vacío, no se escribe")
         return
 
     full_table = f"{POSTGRES_SCHEMA}.{table_name}" if POSTGRES_SCHEMA else table_name
+
+    # Columnas con huecos (p.ej. first_warning_cycle/first_critical_cycle cuando un
+    # motor nunca cruzo ese umbral) rompen la inferencia de tipo: si quedan en float64,
+    # llegan a Postgres como NaN sobre una columna bigint - Postgres rechaza NaN->bigint
+    # con "bigint out of range", no con un error de tipo, asi que es facil pasarlo por
+    # alto. El saneo se hace sobre records (list[dict]), no sobre columnas de pandas,
+    # para evitar que pandas vuelva a convertir None->NaN al reasignar una Series.
+    nullable_int_cols = {"first_warning_cycle", "first_critical_cycle"}
+    records = [
+        {c: (_clean_value(v) if c in nullable_int_cols else v) for c, v in row.items()}
+        for row in df.to_dict(orient="records")
+    ]
+
     try:
         from sqlalchemy import create_engine  # type: ignore
 
         engine = create_engine(
             f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
         )
-        df.to_sql(
+        pd.DataFrame.from_records(records).to_sql(
             table_name,
             con=engine,
             schema=POSTGRES_SCHEMA or None,
@@ -234,41 +266,12 @@ def write_to_postgres(df: pd.DataFrame, table_name: str) -> None:
     jdbc_url = f"jdbc:postgresql://{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     props = {"user": POSTGRES_USER, "password": POSTGRES_PASSWORD, "driver": "org.postgresql.Driver"}
 
-    # Columnas nulas/enteras con huecos (p.ej. first_warning_cycle/first_critical_cycle
-    # cuando ningun motor cruzo ese umbral todavia) rompen la inferencia de Spark o, si se
-    # dejan como float64, llegan a Postgres como NaN sobre una columna bigint (invalido).
-    df = df.copy()
-    all_null_cols: list[str] = []
-    nullable_int_cols = {"first_warning_cycle", "first_critical_cycle"}
-    for c in df.columns:
-        if c in nullable_int_cols:
-            has_value = df[c].apply(lambda x: not pd.isna(x)).any()
-            if has_value:
-                df[c] = df[c].apply(lambda x: None if pd.isna(x) else int(x))
-            else:
-                all_null_cols.append(c)
-                df[c] = 0  # placeholder para que Spark pueda inferir el tipo; se anula abajo
-        elif df[c].dtype == object and df[c].isna().all():
-            all_null_cols.append(c)
-            df[c] = 0
-        elif df[c].dtype == "float64" and df[c].isna().any():
-            non_null = df[c].dropna()
-            if not non_null.empty and (non_null == non_null.astype("int64")).all():
-                df[c] = df[c].apply(lambda x: None if pd.isna(x) else int(x))
-
-    print(f"🔎 DEBUG dtypes {table_name}: {df.dtypes.to_dict()}")
-    if "first_warning_cycle" in df.columns:
-        print(f"🔎 DEBUG first_warning_cycle values: {df['first_warning_cycle'].tolist()}")
-        print(f"🔎 DEBUG first_critical_cycle values: {df['first_critical_cycle'].tolist()}")
-
-    sdf = spark.createDataFrame(df)
-    if all_null_cols:
-        from pyspark.sql.functions import lit
-        from pyspark.sql.types import LongType
-
-        for c in all_null_cols:
-            sdf = sdf.withColumn(c, lit(None).cast(LongType()))
-
+    # createDataFrame sobre records (list[dict]) en vez de sobre el pandas.DataFrame:
+    # Spark infiere el tipo muestreando varias filas, asi que una columna con None en
+    # unas filas e int en otras queda como LongType nullable - a diferencia del camino
+    # pandas->Arrow (spark.createDataFrame(df)) que hereda el dtype float64 de pandas
+    # y manda NaN crudo a Postgres.
+    sdf = spark.createDataFrame(records)
     sdf.write.mode(POSTGRES_IF_EXISTS).jdbc(jdbc_url, full_table, properties=props)
     print(f"✅ PostgreSQL vía Spark JDBC -> {full_table} | rows={len(df)}")
     spark.stop()
